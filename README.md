@@ -56,6 +56,13 @@ python vivid.py --config ./configs/prompts/upper1.yaml
 python vivid.py --config ./configs/prompts/lower1.yaml
 ```
 
+## Train
+**Update Soon**
+
+```
+accelerator launch train.py --config ./configs/train/train_cfg.yaml
+```
+
 ## Data
 As illustrated in ```./data```, the following data should be provided.
 ```text
