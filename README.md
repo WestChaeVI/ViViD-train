@@ -51,16 +51,21 @@ git clone https://huggingface.co/alibaba-yuanjing-aigclab/ViViD
 We provide two demos in ```./configs/prompts/```, run the following commands to have a try😼.
 
 ```
-python vivid.py --config ./configs/prompts/upper1.yaml
+python vivid.py --config ./configs/prompts/man.yaml
 
-python vivid.py --config ./configs/prompts/lower1.yaml
+python vivid.py --config ./configs/prompts/woman.yaml
 ```
 
 ## Train
 
 ```
-sh train_stage.sh
+sh train.sh
 ```       
+or      
+```
+accelerate launch train.py --config configs/train/train_stage.yaml 
+```       
+
 
 ## Data
 As illustrated in ```./data```, the following data should be provided.
