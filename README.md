@@ -1,4 +1,4 @@
-# Unoffical ViViD Implementation
+# Unoffical ViViD Training Code
 ViViD: Video Virtual Try-on using Diffusion Models
 
 [![arXiv](https://img.shields.io/badge/arXiv-2405.11794-b31b1b.svg)](https://arxiv.org/abs/2405.11794)
