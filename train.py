@@ -1,7 +1,6 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3,4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3,4,5,6"
 os.environ['NCCL_P2P_LEVEL'] = 'NVL'
-# os.environ['NCCL_SOCKET_IFNAME'] = 'eth0'
 os.environ['NCCL_SOCKET_IFNAME'] = 'enp3s0f1'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
@@ -112,32 +111,23 @@ class Net(nn.Module):
         ref_image_latents,
         clip_image_embeds,
         pose_img,
-        # uncond_fwd: bool = False
+        uncond_fwd: bool = False
     ):
         
         b, c, f, h, w = noisy_latents.shape
         pose_img = self.pose_guider(pose_img)
         
         
-        # if not uncond_fwd:
-        #     ref_timesteps = torch.zeros_like(timesteps)
-        #     self.reference_unet(
-        #         ref_image_latents,
-        #         ref_timesteps,
-        #         encoder_hidden_states=clip_image_embeds,
-        #         return_dict=False,
-        #     )
-        #     self.reference_control_reader.update(self.reference_control_writer)
+        if not uncond_fwd:
+            ref_timesteps = torch.zeros_like(timesteps)
+            self.reference_unet(
+                ref_image_latents,
+                ref_timesteps,
+                encoder_hidden_states=clip_image_embeds,
+                return_dict=False,
+            )
+            self.reference_control_reader.update(self.reference_control_writer)
         
-        
-        ref_timesteps = torch.zeros_like(timesteps)
-        self.reference_unet(
-            ref_image_latents,
-            ref_timesteps,
-            encoder_hidden_states=clip_image_embeds,
-            return_dict=False,
-        )
-        self.reference_control_reader.update(self.reference_control_writer)
         model_pred = self.denoising_unet(
             noisy_latents,
             timesteps,
@@ -294,11 +284,11 @@ def log_validation(
 
     return results
 
-def initialize_model(cfg, infer_config, weight_dtype):
+def initialize_model(cfg, train_config, weight_dtype):
     vae = AutoencoderKL.from_pretrained(cfg.vae_model_path).to("cuda", dtype=weight_dtype)
     image_enc = CLIPVisionModelWithProjection.from_pretrained(cfg.image_encoder_path).to(dtype=weight_dtype, device="cuda")
     reference_unet = UNet2DConditionModel.from_pretrained_2d(cfg.base_model_path, subfolder="unet", unet_additional_kwargs={"in_channels": 5}).to(device="cuda")
-    denoising_unet = UNet3DConditionModel.from_pretrained_2d(cfg.base_model_path, cfg.mm_path, subfolder="unet", unet_additional_kwargs=OmegaConf.to_container(infer_config.unet_additional_kwargs)).to(device="cuda")
+    denoising_unet = UNet3DConditionModel.from_pretrained_2d(cfg.base_model_path, cfg.mm_path, subfolder="unet", unet_additional_kwargs=OmegaConf.to_container(train_config.unet_additional_kwargs)).to(device="cuda")
     pose_guider = PoseGuider(conditioning_embedding_channels=320, block_out_channels=(16, 32, 96, 256)).to(device="cuda")
 
     # dist.barrier()
@@ -310,19 +300,6 @@ def initialize_model(cfg, infer_config, weight_dtype):
     return vae, image_enc, reference_unet, denoising_unet, pose_guider
 
 
-# def verify_model_parameters(model):
-#     param_count = sum(p.numel() for p in model.parameters())
-#     param_count_tensor = torch.tensor(param_count, dtype=torch.int64, device='cuda')
-#     dist.all_reduce(param_count_tensor)
-#     if param_count_tensor.item() != param_count * dist.get_world_size():
-#         raise ValueError(f"Model parameters do not match across all processes. "
-#                          f"Rank {dist.get_rank()} has {param_count} params, "
-#                          f"expected {param_count_tensor.item() / dist.get_world_size()}.")
-        
-#     dist.barrier()
-    
-
-        
 
 def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.yaml
 
@@ -365,8 +342,8 @@ def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.ya
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
     
-    inference_config_path = "./configs/train/train.yaml"
-    infer_config = OmegaConf.load(inference_config_path)
+    train_config_path = "./configs/train/train.yaml"
+    train_config = OmegaConf.load(train_config_path)
 
     if cfg.weight_dtype == "fp16":
         weight_dtype = torch.float16
@@ -392,20 +369,9 @@ def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.ya
     
     
     print(f"Rank {dist.get_rank()} initializing models")
-    vae, image_enc, reference_unet, denoising_unet, pose_guider = initialize_model(cfg, infer_config, weight_dtype)
+    vae, image_enc, reference_unet, denoising_unet, pose_guider = initialize_model(cfg, train_config, weight_dtype)
     print(f"Rank {dist.get_rank()} models initialized")
 
-    # verify_model_parameters(reference_unet)
-    # print(f"Rank {dist.get_rank()} reference_unet parameters verified")
-    # verify_model_parameters(denoising_unet)
-    # print(f"Rank {dist.get_rank()} denoising_unet parameters verified")
-    # verify_model_parameters(pose_guider)
-    # print(f"Rank {dist.get_rank()} pose_guider parameters verified")
-    
-    # verify_model_parameters(reference_unet)
-    # verify_model_parameters(denoising_unet)
-    # verify_model_parameters(pose_guider)
-    # torch.cuda.empty_cache()
     
     clip_image_processor = CLIPImageProcessor()
     vae_scale_factor = 2 ** (len(vae.config.block_out_channels) - 1)
@@ -452,7 +418,6 @@ def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.ya
         if is_xformers_available():
             reference_unet.enable_xformers_memory_efficient_attention()
             denoising_unet.enable_xformers_memory_efficient_attention()
-            # pose_guider.enable_xformers_memory_efficient_attention()
         else:
             raise ValueError(
                 "xformers is not available. Make sure it is installed correctly"
@@ -510,22 +475,14 @@ def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.ya
     
     data_transform = transforms.Compose([
         transforms.Resize((cfg.data.train_height, cfg.data.train_width)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomAffine(degrees=0, translate=(0.2, 0.2), scale=(0.8, 1.2)),
-        transforms.ToTensor()])
+        transforms.ToTensor(),
+        transforms.Normalize([0.5], [0.5])]
+    )
     
     # Train loader
     train_dataset = LouisVTONDataset_front(base_dir=cfg.data_dir, mode='train', transforms=data_transform, clip_length=cfg.data.n_sample_frames)
-    # train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, batch_size=cfg.data.train_bs, num_workers=16, pin_memory=True, drop_last=True)
     print("Load train_loader")
-
-    context_schedule="uniform"
-    context_frames=30,
-    context_stride=1,
-    context_overlap=4,
-    context_batch_size=1,
-    interpolation_factor=1,
 
     # Prepare everything with our `accelerator`.
     (
@@ -615,7 +572,6 @@ def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.ya
         
         for step, batch in enumerate(train_dataloader):
             t_data = time.time() - t_data_start
-            # print(f"Rank: {dist.get_rank()}, Epoch: {epoch}, Step: {step}")
             
             with accelerator.accumulate(net):
                 video_frames = batch['video_frames'].to(weight_dtype)
@@ -720,8 +676,7 @@ def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.ya
                 noisy_latents = latents_cat
                 pose_img = pose_cond_tensor
                 
-                # model_pred = net(noisy_latents, timesteps, ref_image_latents, encoder_hidden_states, pose_img, uncond_fwd=uncond_fwd)
-                model_pred = net(noisy_latents, timesteps, ref_image_latents, encoder_hidden_states, pose_img)
+                model_pred = net(noisy_latents, timesteps, ref_image_latents, encoder_hidden_states, pose_img, uncond_fwd=uncond_fwd)
 
                 if cfg.snr_gamma == 0:
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
@@ -755,12 +710,6 @@ def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.ya
                 global_step += 1
                 accelerator.log({"train_loss": train_loss}, step=global_step)
                 train_loss = 0.0
-                # if global_step % cfg.checkpointing_steps == 0:
-#                     if accelerator.is_main_process:
-#                         save_path = os.path.join(save_dir, f"checkpoint-{global_step}")
-#                         delete_additional_ckpt(save_dir, 1)
-#                         accelerator.save_state(save_path)
-
                    
                 if global_step % cfg.val.validation_steps == 0:
                     
@@ -799,7 +748,9 @@ def main(cfg):  # cfg : /home/vton/westchaevi/ViViD/configs/train/train_stage.ya
             if global_step >= cfg.solver.max_train_steps:
                 break
         
-        if accelerator.is_main_process:
+        if (
+            epoch + 1
+        ) % cfg.save_model_epoch_interval == 0 and accelerator.is_main_process:
             save_path = os.path.join(save_dir, f"checkpoint-{global_step}")
             delete_additional_ckpt(save_dir, 1)
             accelerator.save_state(save_path)
@@ -822,7 +773,7 @@ def remove_checkpoints(directory):
                 shutil.rmtree(os.path.join(root, dir_name))
                 
 def save_checkpoint(model, save_dir, prefix, ckpt_num, total_limit=None):
-    save_path = osp.join(save_dir, f"{prefix}-{ckpt_num}.pth")
+    save_path = os.path.join(save_dir, f"{prefix}-{ckpt_num}.pth")
 
     if total_limit is not None:
         checkpoints = os.listdir(save_dir)
@@ -842,9 +793,17 @@ def save_checkpoint(model, save_dir, prefix, ckpt_num, total_limit=None):
             for removing_checkpoint in removing_checkpoints:
                 removing_checkpoint = os.path.join(save_dir, removing_checkpoint)
                 os.remove(removing_checkpoint)
-
-    state_dict = model.state_dict()
-    torch.save(state_dict, save_path)
+    
+    if prefix == 'motion_module' :
+        mm_state_dict = OrderedDict()
+        state_dict = model.state_dict()
+        for key in state_dict:
+            if "motion_module" in key:
+                mm_state_dict[key] = state_dict[key]
+        torch.save(mm_state_dict, save_path)
+    else:
+        state_dict = model.state_dict()
+        torch.save(state_dict, save_path)
     
 
 
