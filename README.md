@@ -12,14 +12,14 @@ Dataset released: [ViViD](https://huggingface.co/datasets/alibaba-yuanjing-aigcl
 ## Installation
 
 ```
-git clone https://github.com/alibaba-yuanjing-aigclab/ViViD
-cd ViViD
+git clone https://github.com/WestChaeVI/ViViD_Implementation
+cd ViViD_Implementation
 ```
 
 ### Environment
 ```
-conda create -n vivid python=3.10
-conda activate vivid
+conda create -n vivid_imple python=3.10
+conda activate vivid_imple
 pip install -r requirements.txt  
 ```
 
