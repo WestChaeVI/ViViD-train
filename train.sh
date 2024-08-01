@@ -1,4 +1,4 @@
-accelerate launch train_stage.py --config configs/train/train_stage.yaml
+accelerate launch train.py --config configs/train/train_stage.yaml
 
 # export CUDA_HOME=/home/vton/anaconda3/envs/vivid
 # export PATH=$CUDA_HOME/bin:$PATH
