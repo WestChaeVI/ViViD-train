@@ -1,4 +1,9 @@
-# Unoffical ViViD Training Code
+# Unoffical ViViD Training Code     
+
+<p align='center'>
+<img src="https://github.com/user-attachments/assets/cf2a9bad-34ce-49fa-acaa-f5e46c1c2192" width="100%" height="100%">      
+</p>
+
 
 [![arXiv](https://img.shields.io/badge/arXiv-2405.11794-b31b1b.svg)](https://arxiv.org/abs/2405.11794)
 [![Project Page](https://img.shields.io/badge/Project-Website-green)](https://alibaba-yuanjing-aigclab.github.io/ViViD)
