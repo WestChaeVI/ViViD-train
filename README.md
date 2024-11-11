@@ -118,7 +118,25 @@ Note that the shape and size of the agnostic area may affect the try-on results.
 See [vid2densepose](https://github.com/Flode-Labs/vid2densepose).(Thanks)
 
 ### Cloth mask
-Any detection tool is ok for obtaining the mask, like [SAM](https://github.com/facebookresearch/segment-anything).
+Any detection tool is ok for obtaining the mask, like [SAM](https://github.com/facebookresearch/segment-anything).      
+
+## SR
+### one video
+```
+cd Real-ESRGAN      
+python inference_realesrgan_video.py -n RealESRGAN_x4plus -i input_video_path -o output_video_path --face_enhance
+```       
+weight list     
+```
+realesr-animevideov3 | RealESRGAN_x4plus_anime_6B | RealESRGAN_x4plus | RealESRNet_x4plus | RealESRGAN_x2plus | realesr-general-x4v3
+```
+
+## Face_parsing
+
+```
+cd face_parsing     
+python main_facial_preserving.py
+```       
 
 ## BibTeX
 ```text
